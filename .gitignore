@@ -28,8 +28,10 @@ projectoutline.md
 
 # Cursor/GitHub local skill packs
 .cursor/skills/
+.cursor/rules/
 .skills/
 .github/skills/
+.cursor
 
 
 # debug
