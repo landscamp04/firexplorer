@@ -184,7 +184,7 @@ export default function ArcGISMap({
       });
 
       const map = new Map({
-        basemap: "arcgis/terrain",
+        basemap: "topo-vector",
       });
 
       // Fire perimeters layer — graduated color by year
