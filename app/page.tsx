@@ -30,6 +30,7 @@ export default function Home() {
   const [searchRequest, setSearchRequest] = useState<SearchRequest | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isMobilePanelExpanded, setIsMobilePanelExpanded] = useState(false);
+  const [isFocusModeEnabled, setIsFocusModeEnabled] = useState(true);
 
   const handleSearch = useCallback((city: string) => {
     const trimmedCity = city.trim();
@@ -61,11 +62,15 @@ export default function Home() {
         const persisted = result.fires.find(
           (fire) => fire.objectId === previous.objectId
         );
-        if (persisted) return persisted;
+        return persisted ?? null;
       }
-      return result.fires[0];
+      return null;
     });
     setLoading(false);
+  }, []);
+
+  const handleFireSelect = useCallback((fire: NearbyFire | null) => {
+    setSelectedFire(fire);
   }, []);
 
   const handleSearchError = useCallback(() => {
@@ -93,13 +98,15 @@ export default function Home() {
       <Sidebar
         cityName={selectedCity?.name ?? null}
         radiusMiles={proximityRadius}
+        isFocusModeEnabled={isFocusModeEnabled}
+        onFocusModeChange={setIsFocusModeEnabled}
         onRadiusChange={handleRadiusChange}
         onSearch={handleSearch}
         fireSummary={fireSummary}
         loading={loading}
         searchError={searchError}
         nearbyFiresCount={nearbyFires.length}
-        selectedFireName={selectedFire?.fireName ?? null}
+        selectedFire={selectedFire}
         onMobilePanelExpandedChange={setIsMobilePanelExpanded}
       />
       <ArcGISMap
@@ -108,10 +115,12 @@ export default function Home() {
         summary={fireSummary}
         cityName={selectedCity?.name ?? null}
         loading={loading}
+        isFocusModeEnabled={isFocusModeEnabled}
         isMobilePanelExpanded={isMobilePanelExpanded}
         onAnalysisStart={handleAnalysisStart}
         onSearchComplete={handleSearchComplete}
         onFireSummary={handleFireAnalysis}
+        onFireSelect={handleFireSelect}
         onSearchError={handleSearchError}
       />
     </main>

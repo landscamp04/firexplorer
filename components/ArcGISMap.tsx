@@ -5,10 +5,17 @@ import type Graphic from "@arcgis/core/Graphic";
 import type FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import type Point from "@arcgis/core/geometry/Point";
 import type MapView from "@arcgis/core/views/MapView";
-import { FIRE_WHERE, queryFiresNearPoint } from "@/lib/arcgis";
+import type FeatureLayerView from "@arcgis/core/views/layers/FeatureLayerView";
+import { FIRE_WHERE, getFireCauseLabel, queryFiresNearPoint } from "@/lib/arcgis";
+import {
+  RollingLargestFire,
+  RollingMostRecent,
+  RollingNumber,
+} from "@/components/RollingMetric";
 import type {
   FireAnalysisResult,
   FireSummary,
+  NearbyFire,
   SearchRequest,
   SelectedCity,
 } from "@/types";
@@ -24,10 +31,12 @@ interface ArcGISMapProps {
   summary: FireSummary | null;
   cityName: string | null;
   loading: boolean;
+  isFocusModeEnabled: boolean;
   isMobilePanelExpanded: boolean;
   onAnalysisStart: () => void;
   onSearchComplete: (resolvedCity: SelectedCity) => void;
   onFireSummary: (result: FireAnalysisResult) => void;
+  onFireSelect: (fire: NearbyFire | null) => void;
   onSearchError: () => void;
 }
 
@@ -37,15 +46,18 @@ export default function ArcGISMap({
   summary,
   cityName,
   loading,
+  isFocusModeEnabled,
   isMobilePanelExpanded,
   onAnalysisStart,
   onSearchComplete,
   onFireSummary,
+  onFireSelect,
   onSearchError,
 }: ArcGISMapProps) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<MapView | null>(null);
   const fireLayerRef = useRef<FeatureLayer | null>(null);
+  const fireLayerViewRef = useRef<FeatureLayerView | null>(null);
   const selectedLocationRef = useRef<Point | null>(null);
   const activeSearchIdRef = useRef<number | null>(null);
   const searchGraphicRef = useRef<Graphic | null>(null);
@@ -54,8 +66,13 @@ export default function ArcGISMap({
   const suppressPanUpdateRef = useRef(false);
   const hasUserPannedRef = useRef(false);
   const activePanRequestIdRef = useRef<number>(0);
+  const onFireSelectRef = useRef(onFireSelect);
   const [isMapReady, setIsMapReady] = useState(false);
   const [isPanModeActive, setIsPanModeActive] = useState(false);
+
+  useEffect(() => {
+    onFireSelectRef.current = onFireSelect;
+  }, [onFireSelect]);
 
   const applyPopupDocking = useCallback((view: MapView) => {
     if (!view.popup) return;
@@ -95,6 +112,25 @@ export default function ArcGISMap({
     async (point: Point, miles: number) => {
       const fireLayer = fireLayerRef.current;
       const view = viewRef.current;
+      const fireLayerView = fireLayerViewRef.current;
+
+      if (fireLayerView) {
+        if (isFocusModeEnabled) {
+          fireLayerView.featureEffect = {
+            filter: {
+              geometry: point,
+              distance: miles,
+              units: "miles",
+              spatialRelationship: "intersects",
+            },
+            includedEffect:
+              "drop-shadow(0px, 0px, 10px, rgba(255, 128, 0, 0.35)) brightness(1.08) saturate(1.2)",
+            excludedEffect: "grayscale(85%) opacity(22%) blur(0.8px)",
+          };
+        } else {
+          fireLayerView.featureEffect = null;
+        }
+      }
 
       if (view) {
         try {
@@ -159,7 +195,7 @@ export default function ArcGISMap({
         onFireSummary({ fires: [], summary: null });
       }
     },
-    [onFireSummary]
+    [isFocusModeEnabled, onFireSummary]
   );
 
   const reverseGeocodePoint = useCallback(async (point: Point) => {
@@ -376,6 +412,7 @@ export default function ArcGISMap({
           url: FIRE_LAYER_URL,
           title: "Wildfire Perimeters",
           definitionExpression: FIRE_WHERE,
+          popupEnabled: false,
           renderer: fireRenderer,
           outFields: ["FIRE_NAME", "YEAR_", "GIS_ACRES", "CAUSE"],
           popupTemplate: {
@@ -443,7 +480,26 @@ export default function ArcGISMap({
       const dragHandle = view.on("drag", () => {
         hasUserPannedRef.current = true;
         setIsPanModeActive(true);
+        onFireSelectRef.current(null);
       });
+      const centerHandle = reactiveUtils.watch(
+        () => view.center,
+        (center) => {
+          if (!center || suppressPanUpdateRef.current || !hasUserPannedRef.current) {
+            return;
+          }
+
+          const liveCenter = center.clone();
+          selectedLocationRef.current = liveCenter;
+
+          if (searchGraphicRef.current) {
+            searchGraphicRef.current.geometry = liveCenter;
+            return;
+          }
+
+          void syncMarkerToPoint(liveCenter);
+        }
+      );
       const stationaryHandle = reactiveUtils.watch(
         () => view.stationary,
         (stationary) => {
@@ -471,15 +527,58 @@ export default function ArcGISMap({
           }
         }
       );
+      const clickHandle = view.on("click", async (event) => {
+        const fireLayer = fireLayerRef.current;
+        if (!fireLayer) return;
+
+        const hitTestResult = await view.hitTest(event, {
+          include: [fireLayer],
+        });
+        const hit = hitTestResult.results.find(
+          (result) => result.type === "graphic"
+        );
+
+        if (!hit || hit.type !== "graphic") {
+          return;
+        }
+
+        const attrs = hit.graphic.attributes as Record<string, unknown> | undefined;
+        const objectIdRaw = Number(attrs?.OBJECTID ?? 0);
+        const yearRaw = Number(attrs?.YEAR_);
+        const acresRaw = Number(attrs?.GIS_ACRES ?? 0);
+        const causeRaw = Number(attrs?.CAUSE);
+        const causeCode = Number.isFinite(causeRaw) ? causeRaw : null;
+
+        onFireSelectRef.current({
+          objectId: Number.isFinite(objectIdRaw) ? objectIdRaw : 0,
+          fireName: String(attrs?.FIRE_NAME ?? "Unnamed fire"),
+          year: Number.isFinite(yearRaw) && yearRaw > 0 ? yearRaw : null,
+          acres: Number.isFinite(acresRaw) ? acresRaw : 0,
+          causeCode,
+          causeLabel: getFireCauseLabel(causeCode),
+        });
+
+        hasUserPannedRef.current = false;
+        setIsPanModeActive(false);
+      });
 
       viewRef.current = view;
       setIsMapReady(true);
 
+      if (fireLayerRef.current) {
+        const fireLayerView = (await view.whenLayerView(
+          fireLayerRef.current
+        )) as FeatureLayerView;
+        fireLayerViewRef.current = fireLayerView;
+      }
+
       return () => {
         window.removeEventListener("resize", handleResize);
         dragHandle.remove();
+        centerHandle.remove();
         stationaryHandle.remove();
         popupVisibleHandle.remove();
+        clickHandle.remove();
       };
     };
 
@@ -497,6 +596,10 @@ export default function ArcGISMap({
         panDebounceTimeoutRef.current = null;
       }
       if (viewRef.current) {
+        if (fireLayerViewRef.current) {
+          fireLayerViewRef.current.featureEffect = null;
+          fireLayerViewRef.current = null;
+        }
         if (bufferGraphicRef.current) {
           viewRef.current.graphics.remove(bufferGraphicRef.current);
           bufferGraphicRef.current = null;
@@ -506,13 +609,25 @@ export default function ArcGISMap({
       }
       setIsMapReady(false);
     };
-  }, [applyPopupDocking, handlePanToUpdate]);
+  }, [applyPopupDocking, handlePanToUpdate, syncMarkerToPoint]);
 
   useEffect(() => {
     const location = selectedLocationRef.current;
-    if (!location) return;
+    const fireLayerView = fireLayerViewRef.current;
+
+    if (!location) {
+      if (fireLayerView) {
+        fireLayerView.featureEffect = null;
+      }
+      return;
+    }
+
+    if (fireLayerView && !isFocusModeEnabled) {
+      fireLayerView.featureEffect = null;
+    }
+
     void queryFireSummary(location, radiusMiles);
-  }, [queryFireSummary, radiusMiles]);
+  }, [isFocusModeEnabled, queryFireSummary, radiusMiles]);
 
   useEffect(() => {
     if (!searchRequest || !isMapReady || !viewRef.current) return;
@@ -620,6 +735,7 @@ export default function ArcGISMap({
   }, [
     isMapReady,
     onSearchComplete,
+    onFireSelect,
     onSearchError,
     onAnalysisStart,
     queryFireSummary,
@@ -653,26 +769,41 @@ export default function ArcGISMap({
         <p className="mt-0.5 text-sm font-medium truncate">
           {cityName ?? "Your Position"}
         </p>
-        {loading ? (
-          <p className="mt-2 text-xs text-white/70">Updating wildfire stats...</p>
-        ) : summary ? (
+        {summary ? (
           <div className="mt-2 space-y-1.5 text-xs">
             <div className="flex items-center justify-between gap-2">
               <span className="text-white/70">Nearby Fires</span>
-              <span className="font-medium">{summary.count}</span>
+              <span className="font-medium">
+                <RollingNumber value={summary.count} loading={loading} />
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white/70">Total Acres</span>
+              <span className="font-medium">
+                <RollingNumber
+                  value={summary.totalAcres}
+                  loading={loading}
+                  formatter={(input) => Math.round(input).toLocaleString()}
+                />
+              </span>
             </div>
             <div className="flex items-start justify-between gap-2">
               <span className="text-white/70">Most Recent</span>
-              <span className="max-w-[130px] text-right font-medium truncate">
-                {summary.mostRecent}
+              <span className="max-w-[130px] text-right font-medium truncate tabular-nums">
+                <RollingMostRecent value={summary.mostRecent} loading={loading} />
               </span>
             </div>
             <div className="flex items-start justify-between gap-2">
               <span className="text-white/70">Largest Fire</span>
-              <span className="max-w-[130px] text-right font-medium truncate">
-                {summary.largest}
+              <span className="max-w-[130px] text-right font-medium truncate tabular-nums">
+                <RollingLargestFire value={summary.largest} loading={loading} />
               </span>
             </div>
+            {loading && (
+              <p className="pt-0.5 text-[11px] text-white/55">
+                Updating wildfire stats...
+              </p>
+            )}
           </div>
         ) : (
           <p className="mt-2 text-xs text-white/70">

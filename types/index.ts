@@ -13,6 +13,8 @@ export interface NearbyFire {
   fireName: string;
   year: number | null;
   acres: number;
+  causeCode: number | null;
+  causeLabel: string | null;
 }
 
 export interface FireSummary {
