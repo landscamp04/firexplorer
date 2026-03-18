@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --safe-area-top: env(safe-area-inset-top, 0px);
 }
 
 @theme inline {

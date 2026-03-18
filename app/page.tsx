@@ -29,6 +29,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [searchRequest, setSearchRequest] = useState<SearchRequest | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [isMobilePanelExpanded, setIsMobilePanelExpanded] = useState(false);
 
   const handleSearch = useCallback((city: string) => {
     const trimmedCity = city.trim();
@@ -72,6 +73,11 @@ export default function Home() {
     setSearchError("Location not found. Try city + state, like Highland, CA.");
   }, []);
 
+  const handleAnalysisStart = useCallback(() => {
+    setLoading(true);
+    setSearchError(null);
+  }, []);
+
   const handleRadiusChange = useCallback(
     (value: number) => {
       setProximityRadius(value);
@@ -94,10 +100,16 @@ export default function Home() {
         searchError={searchError}
         nearbyFiresCount={nearbyFires.length}
         selectedFireName={selectedFire?.fireName ?? null}
+        onMobilePanelExpandedChange={setIsMobilePanelExpanded}
       />
       <ArcGISMap
         searchRequest={searchRequest}
         radiusMiles={proximityRadius}
+        summary={fireSummary}
+        cityName={selectedCity?.name ?? null}
+        loading={loading}
+        isMobilePanelExpanded={isMobilePanelExpanded}
+        onAnalysisStart={handleAnalysisStart}
         onSearchComplete={handleSearchComplete}
         onFireSummary={handleFireAnalysis}
         onSearchError={handleSearchError}

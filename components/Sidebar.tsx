@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 interface FireSummary {
   count: number;
@@ -19,6 +19,7 @@ interface SidebarProps {
   searchError: string | null;
   nearbyFiresCount: number;
   selectedFireName: string | null;
+  onMobilePanelExpandedChange: (isExpanded: boolean) => void;
 }
 
 export default function Sidebar({
@@ -31,27 +32,23 @@ export default function Sidebar({
   searchError,
   nearbyFiresCount,
   selectedFireName,
+  onMobilePanelExpandedChange,
 }: SidebarProps) {
   const [searchText, setSearchText] = useState("");
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+
+  useEffect(() => {
+    onMobilePanelExpandedChange(isMobileExpanded);
+  }, [isMobileExpanded, onMobilePanelExpandedChange]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSearch(searchText);
+    setIsMobileExpanded(true);
   };
 
-  return (
-    <div className="absolute top-4 left-4 z-10 w-72 rounded-xl bg-black/60 backdrop-blur-sm text-white p-4 flex flex-col gap-4 shadow-lg">
-      
-      {/* Header */}
-      <div>
-        <h1 className="text-base font-semibold leading-tight">
-          California Wildfire Community Exposure Explorer
-        </h1>
-        <p className="text-xs text-white/60 mt-1">
-          Is your community at risk?
-        </p>
-      </div>
-
+  const panelContent = (
+    <>
       {/* Search */}
       <form className="flex gap-2" onSubmit={handleSubmit}>
         <input
@@ -63,14 +60,12 @@ export default function Sidebar({
         />
         <button
           type="submit"
-          className="rounded-lg bg-orange-600 hover:bg-orange-500 px-3 py-2 text-sm font-medium transition-colors"
+          className="rounded-lg bg-orange-600 hover:bg-orange-500 px-3 py-2 text-sm font-medium transition-colors active:scale-[0.98]"
         >
           Go
         </button>
       </form>
-      {searchError && (
-        <p className="text-xs text-rose-200">{searchError}</p>
-      )}
+      {searchError && <p className="text-xs text-rose-200">{searchError}</p>}
 
       {/* Radius Slider */}
       <div>
@@ -120,7 +115,8 @@ export default function Sidebar({
 
           {/* Insight Card */}
           <div className="rounded-lg bg-orange-900/40 border border-orange-500/30 px-3 py-2 text-xs text-orange-200 leading-relaxed">
-            {fireSummary.count} wildfire perimeters occurred within {radiusMiles} miles of {cityName} between 2000–2025.
+            {fireSummary.count} wildfire perimeters occurred within {radiusMiles} miles
+            of {cityName} between 2000–2025.
           </div>
 
           {/* Stats */}
@@ -152,6 +148,85 @@ export default function Sidebar({
           No fires found within {radiusMiles} miles of {cityName}.
         </p>
       )}
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex absolute top-4 left-4 z-10 w-72 rounded-xl bg-black/60 backdrop-blur-sm text-white p-4 flex-col gap-4 shadow-lg border border-white/10">
+        <div>
+          <h1 className="text-base font-semibold leading-tight">
+            California Wildfire Community Exposure Explorer
+          </h1>
+          <p className="text-xs text-white/60 mt-1">
+            Is your community at risk?
+          </p>
+        </div>
+        {panelContent}
+      </div>
+
+      {/* Mobile backdrop */}
+      <button
+        type="button"
+        aria-label="Close FireXplorer panel"
+        onClick={() => setIsMobileExpanded(false)}
+        className={`md:hidden fixed inset-0 z-20 bg-black/35 transition-opacity duration-300 ${
+          isMobileExpanded
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        }`}
+      />
+
+      {/* Mobile bottom sheet */}
+      <div
+        className={`md:hidden fixed inset-x-3 bottom-3 z-30 h-[min(82dvh,640px)] rounded-2xl border border-white/10 bg-black/70 backdrop-blur-md text-white shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isMobileExpanded
+            ? "translate-y-0"
+            : "translate-y-[calc(100%-78px)]"
+        }`}
+      >
+        <div className="h-full overflow-y-auto p-4 flex flex-col gap-4">
+          <button
+            type="button"
+            onClick={() => setIsMobileExpanded((value) => !value)}
+            className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 active:scale-[0.99] transition-transform"
+          >
+            <div className="text-left">
+              <p className="text-sm font-medium">
+                {cityName ?? "FireXplorer"}
+              </p>
+              <p className="text-xs text-white/60">
+                {nearbyFiresCount} fires • {radiusMiles} mi radius
+              </p>
+            </div>
+            <svg
+              viewBox="0 0 24 24"
+              className={`h-5 w-5 transition-transform duration-300 ${
+                isMobileExpanded ? "rotate-180" : "rotate-0"
+              }`}
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M6 9L12 15L18 9"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          <div
+            className={`transition-opacity duration-200 ${
+              isMobileExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            {panelContent}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

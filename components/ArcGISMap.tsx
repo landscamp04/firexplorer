@@ -5,9 +5,10 @@ import type Graphic from "@arcgis/core/Graphic";
 import type FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import type Point from "@arcgis/core/geometry/Point";
 import type MapView from "@arcgis/core/views/MapView";
+import { FIRE_WHERE, queryFiresNearPoint } from "@/lib/arcgis";
 import type {
   FireAnalysisResult,
-  NearbyFire,
+  FireSummary,
   SearchRequest,
   SelectedCity,
 } from "@/types";
@@ -16,12 +17,15 @@ const FIRE_LAYER_URL = process.env.NEXT_PUBLIC_FIRES_LAYER_URL;
 const CITIES_LAYER_URL = process.env.NEXT_PUBLIC_CITIES_LAYER_URL;
 const WORLD_GEOCODER_URL =
   "https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer";
-const FIRE_MIN_ACRES = Number(process.env.NEXT_PUBLIC_FIRE_MIN_ACRES ?? 450);
-const FIRE_WHERE = `YEAR_ >= 2000 AND YEAR_ <= 2025 AND GIS_ACRES >= ${FIRE_MIN_ACRES}`;
 
 interface ArcGISMapProps {
   searchRequest: SearchRequest | null;
   radiusMiles: number;
+  summary: FireSummary | null;
+  cityName: string | null;
+  loading: boolean;
+  isMobilePanelExpanded: boolean;
+  onAnalysisStart: () => void;
   onSearchComplete: (resolvedCity: SelectedCity) => void;
   onFireSummary: (result: FireAnalysisResult) => void;
   onSearchError: () => void;
@@ -30,6 +34,11 @@ interface ArcGISMapProps {
 export default function ArcGISMap({
   searchRequest,
   radiusMiles,
+  summary,
+  cityName,
+  loading,
+  isMobilePanelExpanded,
+  onAnalysisStart,
   onSearchComplete,
   onFireSummary,
   onSearchError,
@@ -40,99 +49,204 @@ export default function ArcGISMap({
   const selectedLocationRef = useRef<Point | null>(null);
   const activeSearchIdRef = useRef<number | null>(null);
   const searchGraphicRef = useRef<Graphic | null>(null);
+  const bufferGraphicRef = useRef<Graphic | null>(null);
+  const panDebounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressPanUpdateRef = useRef(false);
+  const hasUserPannedRef = useRef(false);
+  const activePanRequestIdRef = useRef<number>(0);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isPanModeActive, setIsPanModeActive] = useState(false);
+
+  const applyPopupDocking = useCallback((view: MapView) => {
+    if (!view.popup) return;
+
+    const isMobileViewport = window.matchMedia("(max-width: 767px)").matches;
+    const popupPosition: "top-center" | "top-right" = isMobileViewport
+      ? "top-center"
+      : "top-right";
+    const safeAreaTopRaw = getComputedStyle(document.documentElement)
+      .getPropertyValue("--safe-area-top")
+      .trim();
+    const safeAreaTop = Number.parseFloat(safeAreaTopRaw);
+    const topInset = Number.isFinite(safeAreaTop) ? safeAreaTop : 0;
+    const currentPadding = view.padding ?? {
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    };
+
+    view.popup.dockEnabled = true;
+    view.popup.dockOptions = {
+      ...view.popup.dockOptions,
+      breakpoint: false,
+      buttonEnabled: true,
+      position: popupPosition,
+    };
+    view.padding = {
+      ...currentPadding,
+      top: isMobileViewport ? Math.round(topInset + 12) : 12,
+      left: isMobileViewport ? 8 : currentPadding.left,
+      right: isMobileViewport ? 8 : currentPadding.right,
+    };
+  }, []);
 
   const queryFireSummary = useCallback(
     async (point: Point, miles: number) => {
       const fireLayer = fireLayerRef.current;
+      const view = viewRef.current;
+
+      if (view) {
+        try {
+          const [
+            geometryEngineModule,
+            graphicModule,
+            simpleFillSymbolModule,
+            simpleLineSymbolModule,
+            colorModule,
+          ] = await Promise.all([
+            import("@arcgis/core/geometry/geometryEngine"),
+            import("@arcgis/core/Graphic"),
+            import("@arcgis/core/symbols/SimpleFillSymbol"),
+            import("@arcgis/core/symbols/SimpleLineSymbol"),
+            import("@arcgis/core/Color"),
+          ]);
+
+          const Graphic = graphicModule.default;
+          const SimpleFillSymbol = simpleFillSymbolModule.default;
+          const SimpleLineSymbol = simpleLineSymbolModule.default;
+          const Color = colorModule.default;
+          const bufferGeometry = geometryEngineModule.geodesicBuffer(
+            point,
+            miles,
+            "miles"
+          );
+          const buffer = Array.isArray(bufferGeometry)
+            ? bufferGeometry[0]
+            : bufferGeometry;
+
+          if (bufferGraphicRef.current) {
+            view.graphics.remove(bufferGraphicRef.current);
+          }
+
+          if (buffer) {
+            bufferGraphicRef.current = new Graphic({
+              geometry: buffer,
+              symbol: new SimpleFillSymbol({
+                color: new Color([24, 24, 27, 0.04]),
+                outline: new SimpleLineSymbol({
+                  color: new Color([24, 24, 27, 0.92]),
+                  width: 1.8,
+                }),
+              }),
+            });
+            view.graphics.add(bufferGraphicRef.current);
+          }
+        } catch {
+          // Keep analysis functional even if buffer drawing fails.
+        }
+      }
+
       if (!fireLayer) {
         onFireSummary({ fires: [], summary: null });
         return;
       }
 
       try {
-        await fireLayer.load();
-
-        const result = await fireLayer.queryFeatures({
-          where: FIRE_WHERE,
-          geometry: point,
-          distance: miles,
-          units: "miles",
-          spatialRelationship: "intersects",
-          returnGeometry: false,
-          outFields: ["OBJECTID", "FIRE_NAME", "YEAR_", "GIS_ACRES"],
-        });
-
-        const features = result.features ?? [];
-        if (features.length === 0) {
-          onFireSummary({
-            fires: [],
-            summary: {
-              count: 0,
-              totalAcres: 0,
-              mostRecent: "None in selected radius",
-              largest: "None in selected radius",
-            },
-          });
-          return;
-        }
-
-        const nearbyFires: NearbyFire[] = features.map((feature) => {
-          const objectId = Number(feature.attributes?.OBJECTID ?? 0);
-          const fireName = String(feature.attributes?.FIRE_NAME ?? "Unnamed fire");
-          const yearRaw = Number(feature.attributes?.YEAR_);
-          const acresRaw = Number(feature.attributes?.GIS_ACRES ?? 0);
-          return {
-            objectId,
-            fireName,
-            year: Number.isFinite(yearRaw) && yearRaw > 0 ? yearRaw : null,
-            acres: Number.isFinite(acresRaw) ? acresRaw : 0,
-          };
-        });
-
-        const totalAcres = features.reduce((sum, feature) => {
-          const acres = Number(feature.attributes?.GIS_ACRES ?? 0);
-          return sum + (Number.isFinite(acres) ? acres : 0);
-        }, 0);
-
-        const mostRecentFeature = [...features].sort((a, b) => {
-          const yearA = Number(a.attributes?.YEAR_ ?? 0);
-          const yearB = Number(b.attributes?.YEAR_ ?? 0);
-          return yearB - yearA;
-        })[0];
-
-        const largestFeature = [...features].sort((a, b) => {
-          const acresA = Number(a.attributes?.GIS_ACRES ?? 0);
-          const acresB = Number(b.attributes?.GIS_ACRES ?? 0);
-          return acresB - acresA;
-        })[0];
-
-        const mostRecentName = String(
-          mostRecentFeature.attributes?.FIRE_NAME ?? "Unnamed fire"
-        );
-        const mostRecentYear = Number(mostRecentFeature.attributes?.YEAR_ ?? 0);
-        const largestName = String(
-          largestFeature.attributes?.FIRE_NAME ?? "Unnamed fire"
-        );
-        const largestAcres = Number(largestFeature.attributes?.GIS_ACRES ?? 0);
-
-        onFireSummary({
-          fires: nearbyFires,
-          summary: {
-            count: features.length,
-            totalAcres: Math.round(totalAcres),
-            mostRecent:
-              mostRecentYear > 0
-                ? `${mostRecentName} (${mostRecentYear})`
-                : mostRecentName,
-            largest: `${largestName} (${Math.round(largestAcres).toLocaleString()} acres)`,
-          },
-        });
+        const result = await queryFiresNearPoint(point, miles, fireLayer, FIRE_WHERE);
+        onFireSummary(result);
       } catch {
         onFireSummary({ fires: [], summary: null });
       }
     },
     [onFireSummary]
+  );
+
+  const reverseGeocodePoint = useCallback(async (point: Point) => {
+    const locator = await import("@arcgis/core/rest/locator");
+    const response = await locator.locationToAddress(WORLD_GEOCODER_URL, {
+      location: point,
+    });
+
+    const responseData = response as unknown as {
+      address?: Record<string, unknown> | string;
+    };
+    const address =
+      typeof responseData.address === "object" && responseData.address !== null
+        ? responseData.address
+        : undefined;
+    const resolvedName =
+      typeof address?.City === "string" && address.City.trim().length > 0
+        ? address.City
+        : typeof address?.Subregion === "string" &&
+            address.Subregion.trim().length > 0
+          ? address.Subregion
+          : "Your Position";
+
+    return {
+      name: resolvedName,
+      coordinates: {
+        latitude: Number(point.latitude ?? point.y),
+        longitude: Number(point.longitude ?? point.x),
+      },
+    } satisfies SelectedCity;
+  }, []);
+
+  const syncMarkerToPoint = useCallback(async (point: Point) => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const graphicModule = await import("@arcgis/core/Graphic");
+    const Graphic = graphicModule.default;
+
+    if (searchGraphicRef.current) {
+      view.graphics.remove(searchGraphicRef.current);
+    }
+
+    searchGraphicRef.current = new Graphic({
+      geometry: point,
+      symbol: {
+        type: "simple-marker",
+        style: "circle",
+        color: [37, 99, 235, 0.95],
+        size: 10,
+        outline: {
+          color: [255, 255, 255, 1],
+          width: 1.5,
+        },
+      },
+    });
+    view.graphics.add(searchGraphicRef.current);
+  }, []);
+
+  const handlePanToUpdate = useCallback(
+    async (center: Point) => {
+      const requestId = Date.now();
+      activePanRequestIdRef.current = requestId;
+
+      onAnalysisStart();
+      selectedLocationRef.current = center;
+
+      try {
+        const resolvedCity = await reverseGeocodePoint(center);
+        if (activePanRequestIdRef.current !== requestId) return;
+
+        await syncMarkerToPoint(center);
+        onSearchComplete(resolvedCity);
+        await queryFireSummary(center, radiusMiles);
+      } catch {
+        if (activePanRequestIdRef.current !== requestId) return;
+        await queryFireSummary(center, radiusMiles);
+      }
+    },
+    [
+      onAnalysisStart,
+      onSearchComplete,
+      queryFireSummary,
+      radiusMiles,
+      reverseGeocodePoint,
+      syncMarkerToPoint,
+    ]
   );
 
   useEffect(() => {
@@ -150,6 +264,7 @@ export default function ArcGISMap({
         simpleFillSymbolModule,
         simpleLineSymbolModule,
         simpleMarkerSymbolModule,
+        reactiveUtilsModule,
       ] = await Promise.all([
         import("@arcgis/core/Map"),
         import("@arcgis/core/views/MapView"),
@@ -161,6 +276,7 @@ export default function ArcGISMap({
         import("@arcgis/core/symbols/SimpleFillSymbol"),
         import("@arcgis/core/symbols/SimpleLineSymbol"),
         import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+        import("@arcgis/core/core/reactiveUtils"),
       ]);
 
       const Map = mapModule.default;
@@ -173,6 +289,7 @@ export default function ArcGISMap({
       const SimpleFillSymbol = simpleFillSymbolModule.default;
       const SimpleLineSymbol = simpleLineSymbolModule.default;
       const SimpleMarkerSymbol = simpleMarkerSymbolModule.default;
+      const reactiveUtils = reactiveUtilsModule;
 
       // California bounding extent
       const californiaExtent = new Extent({
@@ -309,22 +426,87 @@ export default function ArcGISMap({
         constraints: {
           minZoom: 5,
         },
+        popup: {
+          dockEnabled: true,
+          dockOptions: {
+            breakpoint: false,
+            buttonEnabled: true,
+            position: "top-right",
+          },
+        },
       });
+
+      applyPopupDocking(view);
+      const handleResize = () => applyPopupDocking(view);
+      window.addEventListener("resize", handleResize);
+
+      const dragHandle = view.on("drag", () => {
+        hasUserPannedRef.current = true;
+        setIsPanModeActive(true);
+      });
+      const stationaryHandle = reactiveUtils.watch(
+        () => view.stationary,
+        (stationary) => {
+          if (!stationary || suppressPanUpdateRef.current || !hasUserPannedRef.current) {
+            return;
+          }
+
+          const center = view.center?.clone();
+          if (!center) return;
+
+          if (panDebounceTimeoutRef.current) {
+            clearTimeout(panDebounceTimeoutRef.current);
+          }
+          panDebounceTimeoutRef.current = setTimeout(() => {
+            void handlePanToUpdate(center);
+          }, 500);
+        }
+      );
+      const popupVisibleHandle = reactiveUtils.watch(
+        () => view.popup?.visible,
+        (visible) => {
+          if (visible) {
+            hasUserPannedRef.current = false;
+            setIsPanModeActive(false);
+          }
+        }
+      );
 
       viewRef.current = view;
       setIsMapReady(true);
+
+      return () => {
+        window.removeEventListener("resize", handleResize);
+        dragHandle.remove();
+        stationaryHandle.remove();
+        popupVisibleHandle.remove();
+      };
     };
 
-    void initializeMap();
+    let removeResizeListener: (() => void) | undefined;
+    void initializeMap().then((cleanup) => {
+      removeResizeListener = cleanup;
+    });
 
     return () => {
+      if (removeResizeListener) {
+        removeResizeListener();
+      }
+      if (panDebounceTimeoutRef.current) {
+        clearTimeout(panDebounceTimeoutRef.current);
+        panDebounceTimeoutRef.current = null;
+      }
       if (viewRef.current) {
+        if (bufferGraphicRef.current) {
+          viewRef.current.graphics.remove(bufferGraphicRef.current);
+          bufferGraphicRef.current = null;
+        }
         viewRef.current.destroy();
         viewRef.current = null;
       }
       setIsMapReady(false);
     };
-  }, []);
+  }, [applyPopupDocking, handlePanToUpdate]);
 
   useEffect(() => {
     const location = selectedLocationRef.current;
@@ -346,13 +528,9 @@ export default function ArcGISMap({
       activeSearchIdRef.current = currentSearchId;
 
       try {
-        const [locatorModule, graphicModule] = await Promise.all([
-          import("@arcgis/core/rest/locator"),
-          import("@arcgis/core/Graphic"),
-        ]);
+        const locatorModule = await import("@arcgis/core/rest/locator");
 
         const locator = locatorModule;
-        const Graphic = graphicModule.default;
 
         const primaryCandidates = await locator.addressToLocations(
           WORLD_GEOCODER_URL,
@@ -390,6 +568,9 @@ export default function ArcGISMap({
         }
 
         selectedLocationRef.current = bestMatch.location;
+        suppressPanUpdateRef.current = true;
+        setIsPanModeActive(false);
+        onAnalysisStart();
 
         await view.goTo(
           {
@@ -406,21 +587,7 @@ export default function ArcGISMap({
         if (searchGraphicRef.current) {
           view.graphics.remove(searchGraphicRef.current);
         }
-
-        searchGraphicRef.current = new Graphic({
-          geometry: bestMatch.location,
-          symbol: {
-            type: "simple-marker",
-            style: "circle",
-            color: [37, 99, 235, 0.95],
-            size: 10,
-            outline: {
-              color: [255, 255, 255, 1],
-              width: 1.5,
-            },
-          },
-        });
-        view.graphics.add(searchGraphicRef.current);
+        await syncMarkerToPoint(bestMatch.location);
 
         const attributes = bestMatch.attributes as Record<string, unknown> | undefined;
         const matchedCity =
@@ -444,6 +611,8 @@ export default function ArcGISMap({
         if (activeSearchIdRef.current === currentSearchId) {
           onSearchError();
         }
+      } finally {
+        suppressPanUpdateRef.current = false;
       }
     };
 
@@ -452,15 +621,65 @@ export default function ArcGISMap({
     isMapReady,
     onSearchComplete,
     onSearchError,
+    onAnalysisStart,
     queryFireSummary,
     radiusMiles,
     searchRequest,
+    syncMarkerToPoint,
   ]);
 
+  useEffect(() => {
+    if (!isMobilePanelExpanded) return;
+    hasUserPannedRef.current = false;
+    setIsPanModeActive(false);
+  }, [isMobilePanelExpanded]);
+
   return (
-    <div
-      ref={mapDivRef}
-      style={{ height: "100vh", width: "100%" }}
-    />
+    <div className="relative h-full w-full">
+      <div
+        ref={mapDivRef}
+        className="absolute inset-0"
+      />
+
+      <div
+        className={`md:hidden pointer-events-none absolute right-3 z-[5] w-[min(232px,calc(100vw-24px))] rounded-xl border border-white/15 bg-black/55 backdrop-blur-sm p-3 text-white shadow-[0_12px_32px_-16px_rgba(0,0,0,0.7)] transition-all duration-300 ${
+          isPanModeActive ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"
+        }`}
+        style={{ top: "calc(var(--safe-area-top) + 12px)" }}
+      >
+        <p className="text-[11px] uppercase tracking-wide text-white/65">
+          Live Map Center
+        </p>
+        <p className="mt-0.5 text-sm font-medium truncate">
+          {cityName ?? "Your Position"}
+        </p>
+        {loading ? (
+          <p className="mt-2 text-xs text-white/70">Updating wildfire stats...</p>
+        ) : summary ? (
+          <div className="mt-2 space-y-1.5 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white/70">Nearby Fires</span>
+              <span className="font-medium">{summary.count}</span>
+            </div>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-white/70">Most Recent</span>
+              <span className="max-w-[130px] text-right font-medium truncate">
+                {summary.mostRecent}
+              </span>
+            </div>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-white/70">Largest Fire</span>
+              <span className="max-w-[130px] text-right font-medium truncate">
+                {summary.largest}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-white/70">
+            Pan the map to fetch nearby wildfire details.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
