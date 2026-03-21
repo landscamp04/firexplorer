@@ -414,6 +414,9 @@ export default function Sidebar({
       {/* Desktop sidebar */}
       <div className="hide-scrollbar hidden md:flex absolute top-4 left-4 z-10 w-72 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl bg-black/60 backdrop-blur-sm text-white p-4 flex-col gap-4 shadow-lg border border-white/10">
         <div>
+          <h1 className="font-coolvetica text-xl text-base font-semibold leading-tight text-[#f07012]">
+            Firexplorer
+          </h1>
           <h1 className="text-base font-semibold leading-tight">
             California Wildfire Community Exposure Explorer
           </h1>

@@ -6,6 +6,18 @@
   --safe-area-top: env(safe-area-inset-top, 0px);
 }
 
+@font-face {
+  font-family: "Coolvetica Rg";
+  src: local("Coolvetica Rg"), url("/fonts/Coolvetica Rg.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-coolvetica {
+  font-family: "Coolvetica Rg", Arial, Helvetica, sans-serif;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

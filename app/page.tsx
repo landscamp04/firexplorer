@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
+import LandingPage from "@/components/LandingPage";
 import Sidebar from "@/components/Sidebar";
 import type {
   FireAnalysisResult,
@@ -20,6 +21,7 @@ const ArcGISMap = dynamic(() => import("@/components/ArcGISMap"), {
 });
 
 export default function Home() {
+  const [hasLaunchedMap, setHasLaunchedMap] = useState(false);
   const [selectedCity, setSelectedCity] = useState<SelectedCity | null>(null);
   const [proximityRadius, setProximityRadius] = useState(10);
   const [nearbyFires, setNearbyFires] = useState<NearbyFire[]>([]);
@@ -92,6 +94,14 @@ export default function Home() {
     },
     [selectedCity]
   );
+
+  const handleLaunchMap = useCallback(() => {
+    setHasLaunchedMap(true);
+  }, []);
+
+  if (!hasLaunchedMap) {
+    return <LandingPage onExplore={handleLaunchMap} />;
+  }
 
   return (
     <main className="relative h-screen w-screen overflow-hidden">
