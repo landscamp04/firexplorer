@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { NearbyFire } from "@/types";
+import Link from "next/link";
 import InsightCard from "@/components/InsightCard";
 import {
   RollingLargestFire,
@@ -414,9 +415,12 @@ export default function Sidebar({
       {/* Desktop sidebar */}
       <div className="hide-scrollbar hidden md:flex absolute top-4 left-4 z-10 w-72 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl bg-black/60 backdrop-blur-sm text-white p-4 flex-col gap-4 shadow-lg border border-white/10">
         <div>
-          <h1 className="font-coolvetica text-xl text-base font-semibold leading-tight text-[#f07012]">
-            Firexplorer
-          </h1>
+          {/* Link below is firexplorer text, clicking takes user back to home page*/}
+          <Link href="/"
+           type="button"
+           className="font-coolvetica text-xl text-base font-semibold leading-tight text-[#f07012]">
+            firexplorer
+          </Link>
           <h1 className="text-base font-semibold leading-tight">
             California Wildfire Community Exposure Explorer
           </h1>
@@ -430,7 +434,7 @@ export default function Sidebar({
       {/* Mobile backdrop */}
       <button
         type="button"
-        aria-label="Close FireXplorer panel"
+        aria-label="Close Firexplorer panel"
         onClick={() => setIsMobileExpanded(false)}
         className={`md:hidden fixed inset-0 z-20 bg-black/35 transition-opacity duration-300 ${
           isMobileExpanded

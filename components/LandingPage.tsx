@@ -1,13 +1,23 @@
 "use client";
 
+import Link from "next/link"
+
 interface LandingPageProps {
-  onExplore?: () => void;
   onSelectTab?: (tab: "resources" | "about" | "home" | "storymap") => void;
 }
 
-const NAV_ITEMS = ["resources", "about", "home", "storymap"] as const;
+const NAV_ITEMS = [
+  { label: "resources", href: "/resources", external: false },
+  { label: "about", href: "/about", external: false },
+  { label: "home", href: "/", external: false },
+  {
+    label: "storymap",
+    href: "https://storymaps.arcgis.com/stories/6ef09b9cb4d6480ea4826a7dfd557635",
+    external: true,
+  },
+] as const;
 
-export default function LandingPage({ onExplore, onSelectTab }: LandingPageProps) {
+export default function LandingPage({ onSelectTab }: LandingPageProps) {
   return (
     <section className="font-coolvetica relative min-h-screen w-full overflow-hidden bg-[#4d4d4d] text-[#f07012]">
       <div className="absolute inset-0">
@@ -17,14 +27,16 @@ export default function LandingPage({ onExplore, onSelectTab }: LandingPageProps
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl -translate-y-4 flex-col px-6 py-10">
         <nav className="mx-auto mt-[30px] grid w-full max-w-[1120px] grid-cols-4 place-items-center">
           {NAV_ITEMS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => onSelectTab?.(item)}
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => onSelectTab?.(item.label)}
+              target={item.external ? "_blank" : undefined}
+              rel={item.external ? "noopener noreferrer" : undefined}
               className="whitespace-nowrap text-[24px] leading-normal text-[#c05c13] opacity-95 transition-opacity hover:opacity-100"
             >
-              {item}
-            </button>
+              {item.label}
+            </Link>
           ))}
         </nav>
 
@@ -48,13 +60,11 @@ export default function LandingPage({ onExplore, onSelectTab }: LandingPageProps
           >
             firexplorer
           </h1>
-          <button
-            type="button"
-            onClick={onExplore}
+          <Link href="/explore"
             className="mt-7 rounded-full border border-[#f26f1280] px-8 py-2 text-xs tracking-wide text-[#f26f12d1] transition-all hover:border-[#f4822f] hover:text-[#ff963f]"
           >
             launch map
-          </button>
+          </Link>
         </div>
       </div>
     </section>
