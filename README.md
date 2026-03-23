@@ -23,6 +23,7 @@ Firexplorer started as an ArcGIS Pro analysis, evolved into a StoryMap, and then
 - Fire detail interaction on click (name, year, acres, cause)
 - Exposure scoring panel with concise rationale and suggested next steps
 - Mobile-optimized panel behavior and responsive page layouts
+- Optimized spatial queries using debouncing and client-side geometry operations to ensure smooth real-time interaction
 
 ---
 
@@ -131,3 +132,4 @@ types/
 Landon Campos
 Software Development Engineer + CS student (CSUSB)  
 Highland, California
+[LinkedIn](https://www.linkedin.com/in/landon-campos-6a1366176/) · [Portfolio](landoncampos.com)
