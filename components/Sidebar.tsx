@@ -455,36 +455,66 @@ export default function Sidebar({
           ref={mobileScrollContainerRef}
           className="h-full overflow-y-auto p-4 flex flex-col gap-4"
         >
-          <button
-            type="button"
-            onClick={() => setIsMobileExpanded((value) => !value)}
-            className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 active:scale-[0.99] transition-transform"
-          >
-            <div className="text-left">
-              <p className="text-sm font-medium">
-                {cityName ?? "FireXplorer"}
-              </p>
-              <p className="text-xs text-white/60">
-                {nearbyFiresCount} fires • {radiusMiles} mi radius
-              </p>
+          {!isMobileExpanded ? (
+            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <Link
+                href="/"
+                className="font-coolvetica text-xl font-semibold leading-tight text-[#f07012] hover:text-[#ff963f]"
+              >
+                firexplorer
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsMobileExpanded(true)}
+                aria-label="Expand Firexplorer panel"
+                className="rounded-md p-1 active:scale-[0.98] transition-transform"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-5 w-5 transition-transform duration-300 rotate-0"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 9L12 15L18 9"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
-            <svg
-              viewBox="0 0 24 24"
-              className={`h-5 w-5 transition-transform duration-300 ${
-                isMobileExpanded ? "rotate-180" : "rotate-0"
-              }`}
-              fill="none"
-              aria-hidden="true"
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsMobileExpanded(false)}
+              className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 active:scale-[0.99] transition-transform"
             >
-              <path
-                d="M6 9L12 15L18 9"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+              <div className="text-left">
+                <p className="text-sm font-medium">
+                  {cityName ?? "Search or Pan to get information"}
+                </p>
+                <p className="text-xs text-white/60">
+                  {nearbyFiresCount} fires • {radiusMiles} mi radius
+                </p>
+              </div>
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5 transition-transform duration-300 rotate-180"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6 9L12 15L18 9"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
 
           <div
             className={`transition-opacity duration-200 ${

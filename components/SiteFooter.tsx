@@ -10,7 +10,7 @@ export default function SiteFooter() {
           firexplorer
         </Link>
         <div className="flex gap-6 uppercase italic tracking-wider">
-          <Link href="https://www.linkedin.com/in/landon-campos-6a1366176/recent-activity/all/" target="_blank" rel="noopener noreferrer" className="hover:text-[#c9a08a] transition-colors">
+          <Link href="https://www.linkedin.com/in/landon-campos-6a1366176" target="_blank" rel="noopener noreferrer" className="hover:text-[#c9a08a] transition-colors">
             Contact
           </Link>
         </div>
