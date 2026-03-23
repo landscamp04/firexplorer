@@ -131,3 +131,4 @@ types/
 Landon Campos
 Software Development Engineer + CS student (CSUSB)  
 Highland, California
+[LinkedIn](https://www.linkedin.com/in/landon-campos-6a1366176/) · [Portfolio](landoncampos.com)
