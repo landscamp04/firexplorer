@@ -123,7 +123,7 @@ export default function AboutPage() {
             Ready to explore?
           </h3>
           <Link
-            href="/"
+            href="/explore"
             className="rounded-full bg-[#e8854a] px-10 py-3 text-[15px] font-bold uppercase tracking-[0.15em] text-[#1a1210] transition-all hover:bg-[#f09a60] hover:scale-105"
           >
             Launch Explorer
