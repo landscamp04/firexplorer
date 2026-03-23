@@ -28,7 +28,7 @@ export default function TopNav({ activePath }: TopNavProps) {
             href={item.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[15px] text-[#c9a08a] opacity-70 transition-all hover:text-[#e8854a] hover:opacity-100"
+            className="text-[20px] text-[#c9a08a] opacity-70 transition-all hover:text-[#e8854a] hover:opacity-100"
           >
             {item.label}
           </Link>
@@ -36,7 +36,7 @@ export default function TopNav({ activePath }: TopNavProps) {
           <Link
             key={item.href}
             href={item.href}
-            className={`text-[15px] transition-all hover:text-[#e8854a] hover:opacity-100 ${
+            className={`text-[20px] transition-all hover:text-[#e8854a] hover:opacity-100 ${
               item.href === activePath
                 ? "text-[#e8854a] underline underline-offset-4 opacity-100"
                 : "text-[#c9a08a] opacity-70"

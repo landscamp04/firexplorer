@@ -21,10 +21,10 @@ export default function AboutPage() {
 
         {/* ── Hero ── */}
         <div className="flex flex-col items-center mt-16 mb-20">
-          <Link href="/" className="text-[#e8854a] text-[80px] md:text-[110px] font-bold leading-none tracking-[0.03em]">
+          <Link href="/" className="text-[#e8854a] text-[80px] md:text-[110px] font-bold italic leading-none hover:text-[#e36920] transition-all duration-300 tracking-[0.03em]">
             firexplorer
           </Link>
-          <p className="mt-3 text-[#c9a08a] text-sm tracking-[0.3em] font-mono">
+          <p className="mt-6 text-[#c9a08a] text-sm tracking-[0.3em] font-mono">
             /fir • iks • plor • er/
           </p>
           <div className="mt-3 w-8 h-[3px] rounded-full bg-[#e8854a]" />
@@ -43,7 +43,7 @@ export default function AboutPage() {
             <div className="bg-[#2a1f1a] border border-[#3d2e24] rounded-xl p-6">
               <p className="text-[#c9a08a] text-[15px] leading-relaxed mb-5">
                 On September 5, 2024, the{" "}
-                <span className="text-white font-normal">Line Fire</span> sparked
+                <Link href="https://www.fire.ca.gov/incidents/2024/9/5/line-fire" target="_blank" rel="noopener noreferrer" className="text-white font-normal hover:text-[#e8854a] hover:border-b border-[#e8854a]">Line Fire</Link> sparked
                 in Highland, CA, less than a minute from my home. It burned over{" "}
                 <span className="text-[#e8854a] font-normal">43,000 acres</span>{" "}
                 and left my community with one question: how exposed are we?
@@ -124,7 +124,7 @@ export default function AboutPage() {
           </h3>
           <Link
             href="/explore"
-            className="rounded-full bg-[#e8854a] px-10 py-3 text-[15px] font-bold uppercase tracking-[0.15em] text-[#1a1210] transition-all hover:bg-[#f09a60] hover:scale-105"
+            className="rounded-full bg-[#e8854a] px-10 py-3 text-[15px] font-bold uppercase tracking-[0.15em] text-[#1a1210] transition-all duration-300 hover:bg-[#e36920] hover:scale-105"
           >
             Launch Explorer
           </Link>

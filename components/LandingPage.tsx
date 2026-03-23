@@ -16,28 +16,28 @@ export default function LandingPage() {
       <TopNav activePath="/" />
 
       {/* Main content */}
-      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-60px)] w-full max-w-6xl flex-col items-center justify-center px-6 pb-20">
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-60px)] w-full max-w-6xl flex-col items-center justify-center px-6 pb-16 md:pb-20">
         <h1
-          className="text-[#e8854a] text-[80px] md:text-[110px] font-bold leading-none tracking-[0.03em]"
+          className="text-[#e8854a] text-[68px] md:text-[110px] font-bold italic leading-none tracking-[0.03em]"
         >
           firexplorer
         </h1>
 
-        <p className="mt-4 max-w-lg text-center text-[15px] leading-relaxed text-[#c9a08a] opacity-80">
+        <p className="mt-3 max-w-lg text-center text-[13px] md:text-[15px] leading-relaxed text-[#c9a08a] opacity-80">
           Explore wildfire exposure around any community in California using
           real perimeter data and proximity analysis.
         </p>
 
-        <div className="mt-8 flex items-center gap-5">
+        <div className="mt-7 flex items-center gap-4 md:gap-5">
           <Link
             href="/explore"
-            className="rounded-full bg-[#e8854a] px-8 py-3 text-[13px] font-bold uppercase tracking-[0.15em] text-[#1a1210] transition-all hover:bg-[#f09a60] hover:scale-105"
+            className="rounded-full bg-[#e8854a] px-7 py-2.5 md:px-8 md:py-3 text-[11px] md:text-[13px] font-bold uppercase tracking-[0.14em] md:tracking-[0.15em] text-[#1a1210] transition-all duration-300 hover:bg-[#e36920] hover:scale-105"
           >
             Launch Explorer
           </Link>
           <Link
             href="/about"
-            className="flex items-center gap-2 text-[13px] font-bold uppercase tracking-[0.15em] text-[#c9a08a] transition-all hover:text-[#e8854a]"
+            className="flex items-center gap-1.5 md:gap-2 text-[11px] md:text-[13px] font-bold uppercase tracking-[0.14em] md:tracking-[0.15em] text-[#c9a08a] transition-all hover:text-[#e8854a] hover:scale-105"
           >
             Learn More
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="mt-px">
