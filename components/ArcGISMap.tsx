@@ -58,6 +58,7 @@ export default function ArcGISMap({
   const viewRef = useRef<MapView | null>(null);
   const fireLayerRef = useRef<FeatureLayer | null>(null);
   const fireLayerViewRef = useRef<FeatureLayerView | null>(null);
+  const selectedHighlightRef = useRef<{ remove: () => void } | null>(null);
   const selectedLocationRef = useRef<Point | null>(null);
   const activeSearchIdRef = useRef<number | null>(null);
   const searchGraphicRef = useRef<Graphic | null>(null);
@@ -73,6 +74,13 @@ export default function ArcGISMap({
   useEffect(() => {
     onFireSelectRef.current = onFireSelect;
   }, [onFireSelect]);
+
+  const clearSelectedHighlight = useCallback(() => {
+    if (selectedHighlightRef.current) {
+      selectedHighlightRef.current.remove();
+      selectedHighlightRef.current = null;
+    }
+  }, []);
 
   const applyPopupDocking = useCallback((view: MapView) => {
     if (!view.popup) return;
@@ -480,6 +488,7 @@ export default function ArcGISMap({
       const dragHandle = view.on("drag", () => {
         hasUserPannedRef.current = true;
         setIsPanModeActive(true);
+        clearSelectedHighlight();
         onFireSelectRef.current(null);
       });
       const centerHandle = reactiveUtils.watch(
@@ -539,6 +548,8 @@ export default function ArcGISMap({
         );
 
         if (!hit || hit.type !== "graphic") {
+          clearSelectedHighlight();
+          onFireSelectRef.current(null);
           return;
         }
 
@@ -549,8 +560,16 @@ export default function ArcGISMap({
         const causeRaw = Number(attrs?.CAUSE);
         const causeCode = Number.isFinite(causeRaw) ? causeRaw : null;
 
+        clearSelectedHighlight();
+        const objectId = Number.isFinite(objectIdRaw) ? objectIdRaw : 0;
+        if (objectId > 0 && fireLayerViewRef.current) {
+          selectedHighlightRef.current = fireLayerViewRef.current.highlight([objectId]) as {
+            remove: () => void;
+          };
+        }
+
         onFireSelectRef.current({
-          objectId: Number.isFinite(objectIdRaw) ? objectIdRaw : 0,
+          objectId,
           fireName: String(attrs?.FIRE_NAME ?? "Unnamed fire"),
           year: Number.isFinite(yearRaw) && yearRaw > 0 ? yearRaw : null,
           acres: Number.isFinite(acresRaw) ? acresRaw : 0,
@@ -596,6 +615,7 @@ export default function ArcGISMap({
         panDebounceTimeoutRef.current = null;
       }
       if (viewRef.current) {
+        clearSelectedHighlight();
         if (fireLayerViewRef.current) {
           fireLayerViewRef.current.featureEffect = null;
           fireLayerViewRef.current = null;
@@ -609,7 +629,7 @@ export default function ArcGISMap({
       }
       setIsMapReady(false);
     };
-  }, [applyPopupDocking, handlePanToUpdate, syncMarkerToPoint]);
+  }, [applyPopupDocking, clearSelectedHighlight, handlePanToUpdate, syncMarkerToPoint]);
 
   useEffect(() => {
     const location = selectedLocationRef.current;
@@ -685,6 +705,8 @@ export default function ArcGISMap({
         selectedLocationRef.current = bestMatch.location;
         suppressPanUpdateRef.current = true;
         setIsPanModeActive(false);
+        clearSelectedHighlight();
+        onFireSelectRef.current(null);
         onAnalysisStart();
 
         await view.goTo(
@@ -742,6 +764,7 @@ export default function ArcGISMap({
     radiusMiles,
     searchRequest,
     syncMarkerToPoint,
+    clearSelectedHighlight,
   ]);
 
   useEffect(() => {
