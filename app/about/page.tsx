@@ -110,6 +110,10 @@ export default function AboutPage() {
               <li>Adjust proximity radius for localized risk assessment.</li>
               <li>Explore granular fire details and historical impact.</li>
               <li>Pan the map to watch data update in real time.</li>
+              <li>
+                Display risk score based on fire count, cumulative acreage, recency, and
+                largest fire size.
+              </li>
             </ul>
           </div>
         </div>

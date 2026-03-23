@@ -24,8 +24,7 @@ export default function LandingPage() {
         </h1>
 
         <p className="mt-3 max-w-lg text-center text-[13px] md:text-[15px] leading-relaxed text-[#c9a08a] opacity-80">
-          Explore wildfire exposure around any community in California using
-          real perimeter data and proximity analysis.
+          Instantly analyze wildfire exposure around any community using real perimeter data, proximity analysis, and risk scoring.
         </p>
 
         <div className="mt-7 flex items-center gap-4 md:gap-5">
