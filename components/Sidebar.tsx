@@ -418,7 +418,7 @@ export default function Sidebar({
           {/* Link below is firexplorer text, clicking takes user back to home page*/}
           <Link href="/"
            type="button"
-           className="font-coolvetica text-xl text-base font-semibold leading-tight text-[#f07012]">
+           className="font-coolvetica text-xl text-base font-semibold leading-tight text-[#f07012] hover:text-[#ff963f]">
             firexplorer
           </Link>
           <h1 className="text-base font-semibold leading-tight">
